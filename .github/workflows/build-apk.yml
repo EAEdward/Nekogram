@@ -41,15 +41,15 @@ jobs:
 
       - name: Write local.properties
         run: |
-          cat > local.properties <<'EOF'
-          apiId=4
-          apiHash=014b35b6184100b085b0d0572f9b5103
+          cat > local.properties <<EOF
+          apiId=${{ secrets.API_ID }}
+          apiHash=${{ secrets.API_HASH }}
           sentryDsn=
           helperBotId=0
           helperBotUsername=
           mapsApiKey=
           EOF
-          cat local.properties
+          grep -v apiHash local.properties
 
       - name: Gradle cache
         uses: actions/cache@v4
