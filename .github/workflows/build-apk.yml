@@ -29,6 +29,19 @@ jobs:
           ndk-version: r27d
           add-to-path: false
 
+      - name: Install ccache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          ccache --version | head -1
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('TMessagesProj/jni/**') }}
+          restore-keys: ccache-${{ runner.os }}-
+
       - name: Fetch mihomo core (arm64)
         run: |
           set -euo pipefail
