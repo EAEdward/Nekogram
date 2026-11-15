@@ -316,6 +316,10 @@ public class ApplicationLoader extends Application {
         AnalyticsHelper.start(this);
         CronetHelper.init(this);
 
+        // Bundled mihomo core: boots asynchronously and points the MTProto stack
+        // at its loopback SOCKS5 listener once the port is actually open.
+        tw.nekomimi.nekogram.proxy.MihomoManager.startAsync(this);
+
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d(helloWorld);
             FileLog.d("app start time = " + (startTime = SystemClock.elapsedRealtime()));
