@@ -4,7 +4,6 @@ plugins {
     id 'com.android.application'
     id 'androidx.baselineprofile'
     id 'org.telegram.build-app-plugin'
-    id 'io.sentry.android.gradle'
 }
 
 dependencies {
@@ -13,15 +12,6 @@ dependencies {
     baselineProfile project(':baselineprofile')
 }
 
-sentry {
-    uploadNativeSymbols = true
-    includeSourceContext = true
-    additionalSourceDirsForSourceContext = [ '../TMessagesProj/src/main/java' ]
-    autoInstallation {
-        enabled = false
-    }
-    ignoredBuildTypes = ["debug"]
-}
 
 android {
     defaultConfig.applicationId = APP_PACKAGE
