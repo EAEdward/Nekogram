@@ -7,26 +7,22 @@ import org.telegram.messenger.FileLog;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.utils.proxy.ProxySettings;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 
 /**
- * Starts a bundled mihomo core and points Telegram's MTProto stack at its local
- * SOCKS5 listener. Nothing leaves the device loopback, and no VPN permission is
- * involved: Telegram just talks to 127.0.0.1:7890 like to any other SOCKS5 proxy.
+ * Starts the bundled mihomo core and points Telegram's MTProto stack at its local
+ * SOCKS5 listener. Everything stays on the device loopback and no VPN permission is
+ * involved: Telegram simply talks to 127.0.0.1:7890 like to any other SOCKS5 proxy.
  *
- * <p>The routing config is refreshed from the subscription on every launch; when
- * that fails the last cached copy is reused, and the copy shipped in assets is the
- * first-run seed, so the app never hard-depends on the subscription being reachable.
+ * <p>The routing table is a fixed minimal config shipped in assets: two US Reality
+ * nodes in a fallback group (dedione first, gcp second). No subscription fetch, no
+ * rule providers, nothing to keep in sync at runtime.
  */
 public final class MihomoManager {
 
@@ -35,7 +31,6 @@ public final class MihomoManager {
     private static final String BINARY_NAME = "mihomo";
     private static final String BUNDLED_LIB = "libmihomo.so";
     private static final String ASSET_CONFIG = "mihomo-config.yaml";
-    private static final String SUBSCRIPTION_URL = "https://sub.eaedward.dpdns.org/sub.yaml";
 
     private static Process process;
     private static volatile boolean ready;
@@ -85,8 +80,9 @@ public final class MihomoManager {
             binary.setExecutable(true, false);
         }
 
+        // Always overwrite: the routing table is part of the APK, not user state.
         final File config = new File(workDir, "config.yaml");
-        prepareConfig(context, config);
+        copyAsset(context, ASSET_CONFIG, config);
 
         final ProcessBuilder builder = new ProcessBuilder(
                 binary.getAbsolutePath(),
@@ -104,101 +100,6 @@ public final class MihomoManager {
 
         ready = true;
         applyTelegramProxy();
-    }
-
-    /**
-     * Refreshes the routing config from the subscription. Falls back to the last
-     * cached file, then to the copy bundled in assets.
-     */
-    private static void prepareConfig(Context context, File target) {
-        final String yaml = download(SUBSCRIPTION_URL);
-        if (yaml != null) {
-            try {
-                writeText(target, sanitize(yaml));
-                return;
-            } catch (IOException e) {
-                FileLog.e(e);
-            }
-        }
-        if (target.exists() && target.length() > 1024) {
-            FileLog.d(TAG + ": subscription unreachable, reusing cached config");
-            return;
-        }
-        try {
-            copyAsset(context, ASSET_CONFIG, target);
-            FileLog.d(TAG + ": using bundled seed config");
-        } catch (IOException e) {
-            FileLog.e(e);
-        }
-    }
-
-    /**
-     * The subscription targets a desktop/router deployment, so two keys must be
-     * forced for an in-app listener: no LAN exposure and no TUN (there is no VPN
-     * permission here, so TUN would just fail and kill the core).
-     */
-    private static String sanitize(String yaml) {
-        final String[] lines = yaml.split("\n", -1);
-        final StringBuilder sb = new StringBuilder(yaml.length() + 64);
-        boolean inTun = false;
-        boolean bindAdded = false;
-        for (String line : lines) {
-            final String trimmed = line.trim();
-            if (trimmed.startsWith("allow-lan:")) {
-                sb.append("allow-lan: false\n");
-                continue;
-            }
-            if ("tun:".equals(trimmed)) {
-                inTun = true;
-            } else if (inTun && !line.isEmpty() && !line.startsWith(" ")) {
-                inTun = false;
-            }
-            if (inTun && "enable: true".equals(trimmed)) {
-                final int indentLen = line.length() - line.replaceAll("^\\s+", "").length();
-                sb.append(line, 0, indentLen).append("enable: false\n");
-                continue;
-            }
-            sb.append(line).append('\n');
-            if (!bindAdded && trimmed.startsWith("mixed-port:")) {
-                sb.append("bind-address: 127.0.0.1\n");
-                bindAdded = true;
-            }
-        }
-        if (!bindAdded) {
-            sb.insert(0, "bind-address: 127.0.0.1\n");
-        }
-        return sb.toString();
-    }
-
-    private static String download(String url) {
-        HttpURLConnection connection = null;
-        try {
-            connection = (HttpURLConnection) new URL(url).openConnection();
-            connection.setConnectTimeout(10_000);
-            connection.setReadTimeout(15_000);
-            connection.setRequestProperty("User-Agent", "nekogram-mihomo");
-            if (connection.getResponseCode() != 200) {
-                FileLog.e(TAG + ": subscription HTTP " + connection.getResponseCode());
-                return null;
-            }
-            try (InputStream in = connection.getInputStream();
-                 ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024)) {
-                final byte[] buffer = new byte[16 * 1024];
-                int read;
-                while ((read = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, read);
-                }
-                final String text = new String(out.toByteArray(), StandardCharsets.UTF_8);
-                return text.length() > 512 ? text : null;
-            }
-        } catch (Throwable t) {
-            FileLog.e(TAG + ": subscription fetch failed: " + t);
-            return null;
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-        }
     }
 
     private static boolean waitForPort(int timeoutMs) {
@@ -265,12 +166,6 @@ public final class MihomoManager {
             while ((read = in.read(buffer)) > 0) {
                 out.write(buffer, 0, read);
             }
-        }
-    }
-
-    private static void writeText(File target, String text) throws IOException {
-        try (OutputStream out = new FileOutputStream(target)) {
-            out.write(text.getBytes(StandardCharsets.UTF_8));
         }
     }
 }
