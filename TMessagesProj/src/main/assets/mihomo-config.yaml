@@ -28,7 +28,7 @@ dns:
 proxies:
   - name: "dedione"
     type: vless
-    server: dedione.eaedward.dpdns.org
+    server: dedione.ssh.eaedward.com
     port: 443
     domain-strategy: ipv4_only
     uuid: f242786f-0cd1-4084-80ad-dcddc9c1bab2
@@ -45,7 +45,7 @@ proxies:
 
   - name: "gcp"
     type: vless
-    server: gcp.eaedward.dpdns.org
+    server: gcp.ssh.eaedward.com
     port: 443
     domain-strategy: ipv4_only
     uuid: a38f5124-7c9a-4d99-8265-f30f97aaea01
